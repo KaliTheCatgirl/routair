@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        @font-face {
+            font-family: "Montserrat";
+            src: url("Montserrat-VariableFont_wght.ttf");
+        }
+
+        * {
+            font-family: "Montserrat", sans-serif;
+            /* border: solid 1px white; */
+        }
+
+        :root {
+            /* --d0: oklch(20% 0.10 300.0);
+            --d1: oklch(25% 0.12 310.0);
+            --d2: oklch(30% 0.14 320.0);
+            --d3: oklch(35% 0.16 330.0);
+            --d4: oklch(40% 0.18 340.0);
+            --d5: oklch(45% 0.20 350.0);
+            --d6: oklch(50% 0.22 360.0); */
+
+            --d0: oklch(20% 0.10 300.0);
+            --d1: oklch(25% 0.12 305.0);
+            --d2: oklch(30% 0.14 310.0);
+            --d3: oklch(35% 0.16 315.0);
+            --d4: oklch(40% 0.18 320.0);
+            --d5: oklch(45% 0.20 325.0);
+            --d6: oklch(50% 0.22 330.0);
+            --d7: oklch(55% 0.24 335.0);
+            --d8: oklch(60% 0.26 340.0);
+            --d9: oklch(65% 0.28 345.0);
+
+            /* --d1: oklch(25% 0.12 280.0);
+            --d2: oklch(30% 0.14 260.0);
+            --d3: oklch(35% 0.16 240.0);
+            --d4: oklch(40% 0.18 220.0);
+            --d5: oklch(45% 0.20 200.0);
+            --d6: oklch(50% 0.22 180.0); */
+
+            --f0: oklch(100% 0.05 110.0);
+            --colour: transparent;
+
+            --green: 
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--d0);
+            color: var(--f0);
+            width: 100vw;
+            height: 100vh;
+            margin: auto auto;
+            text-align: center;
+        }
+
+        #packet {
+            border-radius: 10pt;
+            border: 5px solid var(--d9);
+            background-color: var(--colour);
+            max-width: fit-content;
+            margin: 0 auto;
+            overflow: scroll;
+            text-wrap-mode: nowrap;
+            max-height: 60vh;
+        }
+
+        #packet_text * {
+            font-family: "Noto Sans Mono", monospace;
+            font-size: 2em;
+            /* text-align: center; */
+        }
+
+        @keyframes grow_entry {
+            from { opacity: 0%; scale: 90% 90%; }
+            to { opacity: 100%; scale: 100% 100%; }
+        }
+        @keyframes rise_entry {
+            from { opacity: 0%; translate: 0px 100px; }
+            to { opacity: 100%; translate: 0px 0px; }
+        }
+
+        #title {
+            animation: grow_entry 2s ease-in-out;
+        }
+
+        #request_button {
+            width: 20rem;
+            border-radius: 100vmax;
+            display: block;
+            margin: 1rem auto;
+            padding: 1rem;
+            border: 2px solid var(--d7);
+            background-color: var(--d3);
+            font-size: 2em;
+            color: var(--f0);
+            animation: rise_entry 1.5s ease-in-out;
+        }
+        #request_button:hover {
+            border: 2px solid var(--d9);
+            background-color: var(--d5);
+            cursor: pointer;
+        }
+        #request_button:active {
+            border: 2px solid var(--d1);
+            background-color: var(--d0);
+        }
+
+        .accepted {
+            color: #00ff00;
+            display: none;
+        }
+        .denied {
+            color: #ff0000;
+            display: none;
+        }
+        .unknown {
+            color: #00aaff;
+        }
+
+        #judgement[data-judgement="YES"] .accepted {
+            display: block;
+        }
+        #judgement[data-judgement="NO"] .denied {
+            display: block;
+        }
+
+        #judgement[data-judgement="YES"] .unknown {
+            display: none;
+        }
+        #judgement[data-judgement="NO"] .unknown {
+            display: none;
+        }
+    </style>
+    <script>
+        let gws;
+        let analysing = false;
+        function request() {
+            gws.send(new Uint8Array());
+        }
+        function dbg(s) {
+            console.log(s);
+            return s;
+        }
+        function ws_error() {
+            let red = document.createElement("p");
+            red.style.color = "red";
+            red.style.fontWeight = "bold";
+            red.innerText = "websocket error";
+            document.body.appendChild(red);
+        }
+        let packet_number = 0;
+        /** @param {Uint8Array} packet */
+        function ws_packet(content) {
+            let strings = [];
+            for (let i = 0; i < content.length; i++) {
+                if (i % 16 == 0) {
+                    strings.push([]);
+                }
+                strings[strings.length - 1].push(content[i].toString(16).padStart(2, "0"));
+            }
+            packet_text.replaceChildren();
+            packet.style.setProperty("--colour", "transparent");
+            strings.map(s => s.join(" ")).map(s => {
+                let line = document.createElement("div");
+                line.innerText = s;
+                return line;
+            }).forEach(l => packet_text.appendChild(l));
+            request_button.innerText = "Analysing...";
+            analysing = true;
+            judgement.hidden = true;
+            packet.hidden = false;
+        }
+        const Colours = {
+            YES: "#00ff8080",
+            NO: "#ff004080",
+            default: "#0080ff80",
+        };
+        function get_response_colour(response) {
+            return Colours[response] ?? Colours["default"];
+        }
+        function ws_analysis(analysis) {
+            let colour = get_response_colour(analysis);
+            judgement.dataset.judgement = analysis;
+            packet.style.setProperty("--colour", colour);
+            request_button.innerText = "Request Packet";
+            analysing = false;
+            judgement.hidden = false;
+        }
+        function onload() {
+            // ws_packet(new Uint8Array([...Array(256).keys()]));
+            // ws_analysis("YES");
+
+            let ws = new WebSocket(`ws://${location.host}/feed`);
+            ws.binaryType = "arraybuffer";
+            ws.addEventListener("error", ws_error);
+            ws.addEventListener("open", console.log);
+            ws.addEventListener("message", event => {
+                console.log("message", event);
+                switch (typeof event.data) {
+                    case "string": console.log("dsaf"); ws_text(event.data); break;
+                    case "object": {
+                        let msg = new Uint8Array(event.data);
+                        let discriminator = msg[0];
+                        console.log(discriminator);
+                        let data = msg.slice(1);
+                        switch (discriminator) {
+                            case 0: ws_packet(msg); break;
+                            case 1: ws_analysis(new TextDecoder().decode(data).trim()); break;
+                        }
+                    } break;
+                }
+            });
+            // ws.addEventListener("message", (event) => {
+            //     switch (event.type) {
+            //     case "": ws_message()
+            //     }
+            // });
+            ws.addEventListener("close", console.log);
+            gws = ws;
+        }
+    </script>
+</head>
+
+<body onload="onload()">
+    <div id="title" style="font-size: 10rem; text-align: center; font-weight: 800;">
+        Rout<span style="background-clip: text; -webkit-text-fill-color: transparent; background-image: linear-gradient(90deg, var(--d5), var(--d9));">AI</span>r
+    </div>
+    <div id="packet" hidden>
+        <div id="packet_text" style="margin: 10pt;"></div>
+    </div>
+    <button id="request_button" onclick="request()">Request Packet</button>
+    <div id="judgement" hidden>
+        <h1 class="accepted">&checkmark; Accepted</h1>
+        <h1 class="denied">&Cross; Denied</h1>
+        <h1 class="unknown">? Unknown</h1>
+    </div>
+</body>
+
+</html>
