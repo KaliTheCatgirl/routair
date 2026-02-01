@@ -13,6 +13,7 @@ use openai::{
     Credentials,
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
 };
+use rand::{Rng, rng};
 use tokio::{
     select,
     sync::{
@@ -24,6 +25,9 @@ use warp::{Filter, filters::ws::Message};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let system_prompt = "You are a packet analyser tailored to optmizing network connectivity by validating the importance of a given packet for human emergency services or family communication. Review this based on typical network characteristics of said prioritized packets, such as packet IDs, packet sizes, and packet priority tags. Given any packet, you will ONLY ever respond with a \"YES\" if the packet is valid, or \"NO\" if the packet is invalid, in your most base judgement.";
+    let fake = true;
+
     // http entry point subsystem
     let (ws_tx, mut ws_rx) = mpsc::channel(8);
     tokio::spawn(
@@ -86,6 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::spawn(async move {
         'send_loop: loop {
             want_packet_rx.recv().await;
+            while let Ok(_) = want_packet_rx.try_recv() {}
             let mut packet;
             loop {
                 let Some(new_packet): Option<Vec<u8>> = sender_packet.lock().await.take() else {
@@ -111,27 +116,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     println!("qwerty");
 
-                    let fake = true;
                     let mut packet = vec![1u8];
                     if fake {
                         tokio::time::sleep(Duration::from_secs_f64(fastrand::f64() * 3.0 + 4.0))
                             .await;
                         packet
-                            .write_all(if fastrand::bool() { b"YES" } else { b"NO" })
+                            .write_all(if rng().random_bool(0.1) {
+                                b"YES"
+                            } else {
+                                b"NO"
+                            })
                             .unwrap();
                     } else {
                         let messages = vec![
-                        ChatCompletionMessage {
-                            role: ChatCompletionMessageRole::System,
-                            content: Some("You are a packet analyser. You will be given a packet, and you will respond with \"YES\" if the packet is a valid and important internet packet, and \"NO\" if the packet is invalid.".to_owned()),
-                            ..Default::default()
-                        },
-                        ChatCompletionMessage {
-                            role: ChatCompletionMessageRole::User,
-                            content: Some(format!("Packet data: {packet_string}")),
-                            ..Default::default()
-                        },
-                    ];
+                            ChatCompletionMessage {
+                                role: ChatCompletionMessageRole::System,
+                                content: Some(system_prompt.to_owned()),
+                                ..Default::default()
+                            },
+                            ChatCompletionMessage {
+                                role: ChatCompletionMessageRole::User,
+                                content: Some(format!("Packet data: {packet_string}")),
+                                ..Default::default()
+                            },
+                        ];
                         let credentials = Credentials::from_env();
                         println!("asking");
 
@@ -177,7 +185,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 *tx.lock().await = None;
                 *rx.lock().await = None;
             }
-            while let Ok(_) = want_packet_rx.try_recv() {}
         }
     });
 
